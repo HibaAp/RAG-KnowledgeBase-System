@@ -24,7 +24,6 @@ embedding_model = HuggingFaceEmbeddings(
     model_name="BAAI/bge-large-en",
     encode_kwargs={'normalize_embeddings': False}
 )
-
 def generate_hypothetical_document(sub_query, web_results, groq_api_key=GROQ_API_KEY):
     system_prompt = """You are an expert at generating concise, high-quality hypothetical documents.
     Given a specific query and relevant web content, generate a short, realistic document (50-100 words) 
@@ -52,7 +51,7 @@ def generate_hypothetical_document(sub_query, web_results, groq_api_key=GROQ_API
     response = doc_generator.invoke({"sub_query": sub_query, "web_results": web_results})
     return response[0].document
 
-# Updated retrieve_results function with improved printing
+# Updated retrieve_results function with your HyDE approach
 def retrieve_results(query, retrieve_function=retrieve, groq_api_key=GROQ_API_KEY):
     """
     Converts a user query into sub-queries, generates hypothetical documents using web results and sub-queries,
@@ -65,9 +64,6 @@ def retrieve_results(query, retrieve_function=retrieve, groq_api_key=GROQ_API_KE
     Returns:
         dict: Dictionary of sub-queries and their retrieved documents.
     """
-    print("\n" + "="*80)
-    print(f"PROCESSING QUERY: '{query}'")
-    print("="*80)
 
     # System prompt for query decomposition
     system_prompt = """You are an expert at query decomposition.
@@ -91,7 +87,6 @@ def retrieve_results(query, retrieve_function=retrieve, groq_api_key=GROQ_API_KE
     # Create the processing pipeline for sub-queries
     query_analyzer = prompt | llm_with_tools | parser
 
-    print("\n1. GENERATING SUB-QUERIES...")
     # Invoke the query analyzer
     response = query_analyzer.invoke({"question": query})
 
@@ -99,58 +94,18 @@ def retrieve_results(query, retrieve_function=retrieve, groq_api_key=GROQ_API_KE
     sub_queries = []
     for item in response:
         sub_queries.extend(item.sub_queries)
-    
-    print("-"*80)
-    print("SUB-QUERIES GENERATED:")
-    for i, sq in enumerate(sub_queries, 1):
-        print(f"  {i}. {sq}")
-    print("-"*80)
 
     # Retrieve results for each sub-query using HyDE
     results = {}
-    
-    for i, sub_query in enumerate(sub_queries, 1):
-        print(f"\n2.{i} PROCESSING SUB-QUERY: '{sub_query}'")
-        print("-"*80)
-        
-        # Step 1: Fetch web results
-        print(f"  a. Fetching web results...")
-        web_links = web_search(sub_query)
-        print(f"     Found {len(web_links)} web links")
-        
-        web_results = []
-        for j, link in enumerate(web_links, 1):
-            content = fetch_content_from_link(link)
-            web_results.append(content)
-            print(f"     {j}. Extracted content from: {link[:50]}...")
-        
-        web_content = '\n'.join(web_results)[:1500]
-        
-        # Step 2: Generate hypothetical document
-        print(f"  b. Generating hypothetical document...")
-        hypo_doc = generate_hypothetical_document(sub_query, web_content, groq_api_key)
-        print(f"     Hypothetical document generated ({len(hypo_doc)} chars)")
-        print(f"     Preview: {hypo_doc[:100]}...")
-        
-        # Step 3: Retrieve documents using the embedding
-        print(f"  c. Retrieving documents using hypothetical document embedding...")
+    for sub_query in sub_queries:
+        # Step 1: Fetch web results for the sub-query
+        web_results = '\n'.join([fetch_content_from_link(link) for link in web_search(sub_query)])[:1500]
+
+        # Step 2: Generate a hypothetical document using the sub-query and web results
+        hypo_doc = generate_hypothetical_document(sub_query, web_results, groq_api_key)
+
+        # Step 3: Retrieve documents using the hypothetical document embedding
         retrieved_docs = retrieve_function(hypo_doc)
-        print(f"     Retrieved {len(retrieved_docs)} documents")
-        
         results[sub_query] = retrieved_docs
-        
-        # Print document summaries
-        print("\n  RETRIEVED DOCUMENTS SUMMARY:")
-        for j, doc in enumerate(retrieved_docs, 1):
-            # Assuming retrieved_docs are strings or have a string representation
-            doc_preview = str(doc)[:100].replace('\n', ' ')
-            print(f"     Doc {j}: {doc_preview}...")
-        
-        print(f"\n  COMPLETED PROCESSING SUB-QUERY {i}/{len(sub_queries)}")
-        print("-"*80)
-    
-    print("\nRETRIEVAL PROCESS COMPLETE")
-    print(f"Successfully processed {len(sub_queries)} sub-queries")
-    print("="*80 + "\n")
 
     return results

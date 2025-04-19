@@ -17,3 +17,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#how vertical inclination of beam is verified?
+#"C:\Users\Admin\Downloads\R048r12e.pdf"
+
