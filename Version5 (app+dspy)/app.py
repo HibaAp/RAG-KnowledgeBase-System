@@ -1,12 +1,9 @@
 import streamlit as st
 from query_processing import retrieve_results
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_groq import ChatGroq
-from config import GROQ_API_KEY
+from answer_generation import get_answer
 
 # Streamlit page setup
-st.set_page_config(page_title="Legal RAG Assistant", page_icon="⚖️", layout="centered")
+st.set_page_config(page_title="Regulatory Knowledge Assistant", page_icon="⚖️", layout="centered")
 
 # Hacker green theme
 st.markdown("""
@@ -30,34 +27,20 @@ st.markdown("""
 st.title("⚖️ Legal RAG Assistant")
 
 query = st.text_area("Enter your legal question:", height=100)
-use_web = st.toggle("Enable Web Search", value=True)
+use_web = st.toggle("Enable Web Search", value=False, label_visibility="collapsed")
 
 if st.button("EXECUTE"):
     if query.strip():
         with st.spinner("Processing..."):
             try:
+                # Step 1: Retrieve context docs
                 results = retrieve_results(query, use_web=use_web)
 
-                # Flatten retrieved documents
-                all_docs = []
-                for docs in results.values():
-                    all_docs.extend([str(d) for d in docs])
+                # Step 2: Generate final answer using DSPy-based `get_answer`
+                final_answer = get_answer(query, results)
 
-                if all_docs:
-                    joined_text = "\n\n".join(all_docs)[:4000]  # Simple truncation
-
-                    summary_prompt = ChatPromptTemplate.from_messages([
-                        ("system", "You are a legal assistant. Summarize the following retrieved documents to answer the user's legal question as clearly and concisely as possible."),
-                        ("human", "User Question: {query}\n\nRetrieved Content:\n{context}")
-                    ])
-
-                    llm = ChatGroq(groq_api_key=GROQ_API_KEY, model="llama3-70b-8192", temperature=0.3)
-                    summarizer = summary_prompt | llm | StrOutputParser()
-                    final_answer = summarizer.invoke({"query": query, "context": joined_text})
-
-                    st.markdown(final_answer)
-                else:
-                    st.info("No relevant information found.")
+                # Display output
+                st.markdown(final_answer if final_answer else "No answer generated.")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
     else:
